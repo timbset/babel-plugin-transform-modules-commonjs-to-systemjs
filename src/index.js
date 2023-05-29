@@ -231,6 +231,7 @@ export default declare((api, options) => {
           const exportValues = [];
           const body = path.get("body");
           for (const path of body) {
+            console.log('\nBODY PATH', path.type);
             if (path.isFunctionDeclaration()) {
               beforeBody.push(path.node);
               removedPaths.push(path);
@@ -240,12 +241,52 @@ export default declare((api, options) => {
               path.replaceWith(t.expressionStatement(t.assignmentExpression("=", t.cloneNode(path.node.id), t.toExpression(path.node))));
             }
             else if (path.isVariableDeclaration()) {
-              // Convert top-level variable declarations to "var",
-              // because they must be hoisted
-              path.node.kind = "var";
+              function isPathRequire(path) {
+                const { init } = path.node.declarations[0];
+                return init.type === 'CallExpression' && init.callee.name === 'require';
+              }
+
+              if (isPathRequire(path)) {
+                console.log('\nDECL', path.node.declarations);
+
+                const specifiers = path.node.declarations.map((declaration) => ({
+                  type: 'ImportDefaultSpecifier', // 'ImportSpecifier'
+                  start: declaration.start,
+                  end: declaration.end,
+                  loc: declaration.loc,
+                  imported: declaration.id,
+                  local: declaration.id,
+                  leadingComments: declaration.leadingComments,
+                  innerComments: declaration.innerComments,
+                  trailingComments: declaration.trailingComments
+                }));
+
+                console.log('\nSPEC', specifiers);
+
+                beforeBody.push({
+                  type: path.node.type,
+                  kind: 'var',
+                  declarations: path.node.declarations.map((declaration) => ({
+                    ...declaration,
+                    init: undefined,
+                  })),
+                });
+
+                path.node.declarations.forEach((declaration) => {
+                  pushModule(declaration.init.arguments[0].value, "imports", specifiers);
+                });
+
+                path.remove();
+              } else {
+                // Convert top-level variable declarations to "var",
+                // because they must be hoisted
+                path.node.kind = "var";
+              }
             }
             else if (path.isImportDeclaration()) {
+              // console.log(path.node.source.value, "exports", path.node);
               const source = path.node.source.value;
+              console.log(source, "imports", path.node.specifiers);
               pushModule(source, "imports", path.node.specifiers);
               for (const name of Object.keys(path.getBindingIdentifiers())) {
                 scope.removeBinding(name);

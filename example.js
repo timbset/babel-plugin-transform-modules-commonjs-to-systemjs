@@ -11,7 +11,7 @@ import plugin from './src/index.js';
     export default sum(1, 2);
   `;
 
-  const cjsSource = `
+  const cjsSource1 = `
     const MyMath = require('./math.js');
     const { sum } = MyMath;
 
@@ -19,7 +19,14 @@ import plugin from './src/index.js';
     module.exports.default = sum(1, 2);
   `;
 
-  const result = await babel.transform(esmSource, {
+  const cjsSource2 = `
+    const { sum } = require('./math.js');
+
+    module.exports.sum = sum;
+    module.exports.default = sum(1, 2);
+  `;
+
+  const result = await babel.transform(cjsSource1, {
     compact: false,
     plugins: [plugin],
     sourceMaps: true,
